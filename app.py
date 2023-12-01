@@ -6,6 +6,7 @@ from flask_jwt_extended import JWTManager
 from login import   login_blueprint
 from flask_login import current_user
 from flask_cors import CORS
+from chatapi import chat_api
 
 
 app = Flask(__name__)
@@ -13,7 +14,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://alan:Muzata901alan@192.
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'Muzata-Merande'
 app.register_blueprint(login_blueprint)
+app.register_blueprint(chat_api, url_prefix='/api')
 db.init_app(app)
+jwt = JWTManager(app)
 CORS(app)
 # app.py
 login_manager = LoginManager(app)
@@ -45,6 +48,31 @@ def test_connection():
         # 如果有异常，返回错误信息
         return jsonify({"success": False, "error": str(e)})
 
+
+
+"""
+令牌过期
+当令牌过期时，你可以要求用户重新登录来获取新的令牌。
+"""
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({"msg": "Token has expired, please log in again."}), 401
+
+"""
+无效的令牌
+如果收到的令牌无效（例如，被篡改），你可以返回错误消息。
+"""
+@jwt.invalid_token_loader
+def invalid_token_callback(error):  # Callback function receives the error message as an argument
+    return jsonify({"msg": "Invalid token.", "error": error}), 422
+
+"""
+未提供令牌
+如果请求没有提供JWT令牌，你可以定义一个回调函数来处理这种情况
+"""
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({"msg": "Token is missing.", "error": error}), 401
 
 
 if __name__ == '__main__':

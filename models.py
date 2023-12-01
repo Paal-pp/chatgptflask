@@ -31,3 +31,15 @@ class ChatRecord(db.Model):
         return f'<ChatRecord {self.id} by User {self.user_id}>'
 
 
+class ChatSession(db.Model):
+    __tablename__ = 'chat_sessions'
+    session_id = db.Column(db.String(255), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    title = db.Column(db.String(255), nullable=False)
+    last_updated = db.Column(db.DateTime, server_default=db.func.current_timestamp())
+
+    # 与 ChatRecord 的一对多关系
+    chat_records = db.relationship('ChatRecord', backref='chat_session', lazy=True)
+
+    def __repr__(self):
+        return f'<ChatSession {self.title} by User {self.user_id}>'
