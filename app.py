@@ -3,7 +3,7 @@ from flask import Flask
 from models import db, User, ChatRecord
 from flask_login import LoginManager, login_user
 from flask_jwt_extended import JWTManager
-from login import   login_blueprint
+from user import   user_info
 from flask_login import current_user
 from flask_cors import CORS
 from chatapi import chat_api
@@ -13,14 +13,13 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://alan:Muzata901alan@192.168.1.252:3306/chatgptweb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'Muzata-Merande'
-app.register_blueprint(login_blueprint)
+app.register_blueprint(user_info)
 app.register_blueprint(chat_api, url_prefix='/api')
 db.init_app(app)
 jwt = JWTManager(app)
 CORS(app)
 # app.py
 login_manager = LoginManager(app)
-login_manager.login_view = 'login.login'  # 'blueprint_name.function_name'
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -76,4 +75,4 @@ def missing_token_callback(error):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000,debug=True)

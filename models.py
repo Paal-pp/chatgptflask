@@ -5,7 +5,7 @@ db =SQLAlchemy()
 
 class User(UserMixin,db.Model):
     __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
@@ -21,25 +21,28 @@ class User(UserMixin,db.Model):
 class ChatRecord(db.Model):
     __tablename__ = 'chat_records'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    session_id = db.Column(db.String(255), db.ForeignKey('chat_sessions.session_id'))  # 添加这个外键
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     message = db.Column(db.Text)
     response = db.Column(db.Text)
     timestamp = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
-    session_id = db.Column(db.String(255))
+
 
     def __repr__(self):
-        return f'<ChatRecord {self.id} by User {self.user_id}>'
+        return f'<ChatRecord {self.id} in Session {self.session_id} by User {self.user_id}>'
 
 
 class ChatSession(db.Model):
     __tablename__ = 'chat_sessions'
+
     session_id = db.Column(db.String(255), primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'))
     title = db.Column(db.String(255), nullable=False)
     last_updated = db.Column(db.DateTime, server_default=db.func.current_timestamp())
 
     # 与 ChatRecord 的一对多关系
     chat_records = db.relationship('ChatRecord', backref='chat_session', lazy=True)
 
+
     def __repr__(self):
-        return f'<ChatSession {self.title} by User {self.user_id}>'
+        return f'<ChatSession {self.session_id}> {self.title} by User {self.user_id}>'

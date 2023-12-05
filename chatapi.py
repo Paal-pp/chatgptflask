@@ -25,6 +25,10 @@ def get_chat_sessions(user_id):
         # 从数据库中获取该用户的所有对话会话
         sessions = ChatSession.query.filter_by(user_id=user_id).all()
 
+        # 如果没有找到会话，则返回空列表
+        if not sessions:
+            return jsonify([]), 200
+
         # 将每个会话转换为字典格式
         sessions_data = [{
             'session_id': session.session_id,
@@ -38,6 +42,7 @@ def get_chat_sessions(user_id):
     except Exception as e:
         # 在出错时返回错误信息
         return jsonify({'error': str(e)}), 500
+
 
 
 
