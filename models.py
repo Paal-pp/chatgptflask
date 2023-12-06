@@ -37,7 +37,7 @@ class ChatSession(db.Model):
 
     session_id = db.Column(db.String(255), primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'))
-    title = db.Column(db.String(255), nullable=False)
+    tittle = db.Column(db.String(255), nullable=False)
     last_updated = db.Column(db.DateTime, server_default=db.func.current_timestamp())
 
     # 与 ChatRecord 的一对多关系

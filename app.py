@@ -5,7 +5,7 @@ from flask_login import LoginManager, login_user
 from flask_jwt_extended import JWTManager
 from user import   user_info
 from flask_login import current_user
-from flask_cors import CORS
+from flask_cors import CORS ,cross_origin
 from chatapi import chat_api
 
 
