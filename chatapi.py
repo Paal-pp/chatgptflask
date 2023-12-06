@@ -3,7 +3,7 @@ from models import ChatSession, ChatRecord,User
 from models import db
 import uuid
 from flask_jwt_extended import jwt_required, get_jwt_identity  # 假设使用 flask_jwt_extended
-
+from app import CORS,cross_origin
 
 chat_api = Blueprint('chat_api', __name__)
 
@@ -25,10 +25,6 @@ def get_chat_sessions(user_id):
         # 从数据库中获取该用户的所有对话会话
         sessions = ChatSession.query.filter_by(user_id=user_id).all()
 
-        # 如果没有找到会话，则返回空列表
-        if not sessions:
-            return jsonify([]), 200
-
         # 将每个会话转换为字典格式
         sessions_data = [{
             'session_id': session.session_id,
@@ -45,21 +41,28 @@ def get_chat_sessions(user_id):
 
 
 
-
 """
 获取聊天历史记录 分页
 """
-@chat_api.route('/chat/history/<string:session_id>', methods=['GET'])
-def get_chat_history(session_id):
+
+@chat_api.route('/history/<string:session_id>/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_chat_history(session_id, user_id):
     try:
+        # 从JWT令牌中获取当前用户ID
+        current_user_id = get_jwt_identity()
+        # 检查请求的user_id是否与当前用户ID匹配
+        if current_user_id != user_id:
+            return jsonify({'error': 'Unauthorized access'}), 403
+
         # 获取分页参数
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
 
         # 从数据库中获取指定session_id的聊天记录，按时间降序
         pagination = ChatRecord.query.filter_by(session_id=session_id) \
-                                     .order_by(ChatRecord.timestamp.desc()) \
-                                     .paginate(page, per_page, error_out=False)
+            .order_by(ChatRecord.timestamp.desc()) \
+            .paginate(page=page, per_page=per_page, error_out=False)
 
         records = pagination.items
 
