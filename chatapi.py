@@ -1,17 +1,19 @@
 from flask import Blueprint, jsonify, request
-from models import ChatSession, ChatRecord,User
+from models import ChatSession, ChatRecord, User
 from models import db
 import uuid
 from flask_jwt_extended import jwt_required, get_jwt_identity  # 假设使用 flask_jwt_extended
-from app import CORS,cross_origin
-import json,requests
+from app import CORS, cross_origin
+import json, requests
+import traceback
 
 chat_api = Blueprint('chat_api', __name__)
-
 
 """
 获取历史会话信息
 """
+
+
 @chat_api.route('/sessions/<int:user_id>', methods=['GET'])
 @jwt_required()  # 需要JWT令牌认证
 def get_chat_sessions(user_id):
@@ -41,10 +43,10 @@ def get_chat_sessions(user_id):
         return jsonify({'error': str(e)}), 500
 
 
-
 """
 获取聊天历史记录 分页
 """
+
 
 @chat_api.route('/history/<string:session_id>/<int:user_id>', methods=['GET'])
 @jwt_required()
@@ -90,6 +92,8 @@ def get_chat_history(session_id, user_id):
 """
 创建新的会话信息
 """
+
+
 @chat_api.route('/chat/session/create', methods=['POST'])
 @jwt_required()
 def create_chat_session():
@@ -111,7 +115,7 @@ def create_chat_session():
         new_session_id = str(uuid.uuid4())
 
         # 创建新的ChatSession对象，并传递user_id和其他必要信息
-        new_session = ChatSession(session_id=new_session_id, user_id=user_id,tittle="Newchat")
+        new_session = ChatSession(session_id=new_session_id, user_id=user_id, tittle="Newchat")
 
         # 将新会话添加到数据库
         db.session.add(new_session)
@@ -127,15 +131,17 @@ def create_chat_session():
 """
 发送消息
 """
+
+
 @chat_api.route('/chat/sendmessage', methods=['POST'])
 @jwt_required()
 def sendmessage():
     try:
-        data =request.json
+        data = request.json
         user_id = data.get('user_id')
         message = data.get('message')
         session_id = data.get('session_id')
-
+        print(data)
         # 验证数据的有效性
         if not user_id or not message or not session_id:
             return jsonify({"error": "Missing user_id, message, or session_id"}), 400
@@ -146,7 +152,7 @@ def sendmessage():
         new_chat_record = ChatRecord(
             user_id=user_id,
             message=message,
-            response =response,
+            response=response,
             session_id=session_id
         )
 
@@ -158,18 +164,35 @@ def sendmessage():
         return jsonify({"message": "Message sent successfully", "message_id": new_chat_record.id}), 201
 
     except Exception as e:
-        return jsonify({"error":str(e)}),500
+        print(str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
-
-
-    pass
 
 def request_api(message):
     url = "http://101.36.98.230:4396/chat"
-
+    print(message)
     payload = json.dumps({
         "message": message
     })
-    response = requests.request("POST", url, data=payload)
-    chat_requests =response.json()['message']
-    return chat_requests
+    headers = {
+        'Content-Type': 'application/json'
+    }
+    response = requests.request("POST", url, data=payload, headers=headers)
+
+    # 检查响应状态码
+    if response.status_code != 200:
+        # 处理错误情况，例如打印错误信息或抛出异常
+        print(f"Error: Received status code {response.status_code}")
+        return None
+
+    try:
+        chat_response = response.json()['message']
+    except json.JSONDecodeError:
+        print("Error: Response is not valid JSON.")
+        return None
+    except KeyError:
+        print("Error: 'message' not found in response.")
+        return None
+
+    return chat_response
