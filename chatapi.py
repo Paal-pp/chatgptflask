@@ -1,11 +1,15 @@
+import json
+import requests
+import time
+import traceback
+import uuid
+from extrafunction import *
 from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required, get_jwt_identity  # 假设使用 flask_jwt_extended
+
+from cors_config import cross_origin
 from models import ChatSession, ChatRecord, User
 from models import db
-import uuid
-from flask_jwt_extended import jwt_required, get_jwt_identity  # 假设使用 flask_jwt_extended
-from app import CORS, cross_origin
-import json, requests
-import traceback
 
 chat_api = Blueprint('chat_api', __name__)
 
@@ -15,6 +19,7 @@ chat_api = Blueprint('chat_api', __name__)
 
 
 @chat_api.route('/sessions/<int:user_id>', methods=['GET'])
+@cross_origin()  # 允许所有域名跨源访问这个路由
 @jwt_required()  # 需要JWT令牌认证
 def get_chat_sessions(user_id):
     try:
@@ -49,6 +54,7 @@ def get_chat_sessions(user_id):
 
 
 @chat_api.route('/history/<string:session_id>/<int:user_id>', methods=['GET'])
+@cross_origin()  # 允许所有域名跨源访问这个路由
 @jwt_required()
 def get_chat_history(session_id, user_id):
     try:
@@ -71,13 +77,14 @@ def get_chat_history(session_id, user_id):
 
         # 将每条记录转换为字典格式
         records_data = [{
-            'message': record.message,
+            'message': "你：" + record.message,
             'response': record.response,
             'timestamp': record.timestamp.isoformat()
         } for record in records]
 
         # 返回包含聊天记录数据的JSON响应，以及分页信息
         return jsonify({
+
             'records': records_data,
             'total': pagination.total,
             'pages': pagination.pages,
@@ -95,6 +102,7 @@ def get_chat_history(session_id, user_id):
 
 
 @chat_api.route('/chat/session/create', methods=['POST'])
+@cross_origin()  # 允许所有域名跨源访问这个路由
 @jwt_required()
 def create_chat_session():
     try:
@@ -134,6 +142,7 @@ def create_chat_session():
 
 
 @chat_api.route('/chat/sendmessage', methods=['POST'])
+@cross_origin()  # 允许所有域名跨源访问这个路由
 @jwt_required()
 def sendmessage():
     try:
@@ -141,19 +150,68 @@ def sendmessage():
         user_id = data.get('user_id')
         message = data.get('message')
         session_id = data.get('session_id')
+        gptmodel = data.get("gptmodel")
+        gpttoken = int(data.get("gpttoken"))
+        print(gptmodel)
         print(data)
+
         # 验证数据的有效性
-        if not user_id or not message or not session_id:
+        if not user_id or not message:
             return jsonify({"error": "Missing user_id, message, or session_id"}), 400
 
-        response = request_api(message)
+        if session_id is None:
+            # 生成一个新的session_id
+            session_id = str(uuid.uuid4())
+            new_session = ChatSession(session_id=session_id, user_id=user_id, tittle="Newchat")
+            db.session.add(new_session)
+            db.session.commit()
 
-        # 创建新的聊天记录
+        chat_session = ChatSession.query.get(session_id)
+
+        if chat_session and chat_session.tittle == 'Newchat':
+            # 检查 ChatRecord 表中是否有该 session_id 的记录
+            chat_record_exists = ChatRecord.query.filter_by(session_id=session_id).first() is not None
+
+            if not chat_record_exists:
+                # 如果 ChatRecord 中没有记录，更新 ChatSession 表中的记录
+                chat_session.tittle = message[:50]
+                db.session.commit()
+        # 假设 ChatRecord 是你的数据库模型，session_id 是当前会话的标识
+        latest_records = ChatRecord.query.filter_by(session_id=session_id) \
+            .order_by(ChatRecord.timestamp.desc()).limit(3).all()
+
+        messages = []
+
+        # 将数据库记录转换为消息列表
+        for record in reversed(latest_records):
+            if record.message:  # 如果存在用户消息
+                messages.append({"role": "user", "content": record.message})
+            if record.response:  # 如果存在 AI 的回应
+                messages.append({"role": "assistant", "content": record.response})
+
+        newmessage = f"回复{gpttoken}字数" + message
+
+        # 添加用户的新消息
+        new_message = {"role": "user", "content": newmessage}  # message 是用户的新消息
+        messages.append(new_message)
+
+        # 现在 messages 包含了对话历史和新消息
+        # response =1
+        response = request_api(message=messages, model=gptmodel)
+
+        tobe_encryption = {"message": message, "response": response}
+        result_encryption = aes_encryption(tobe_encryption)
+
+        encryption_message = result_encryption["message"]
+        encryption_response = result_encryption["response"]
+
+        # 创建 新的 聊天记录
         new_chat_record = ChatRecord(
             user_id=user_id,
-            message=message,
-            response=response,
-            session_id=session_id
+            message=encryption_message,
+            response=encryption_response,
+            session_id=session_id,
+            model=gptmodel
         )
 
         # 保存记录到数据库
@@ -161,38 +219,9 @@ def sendmessage():
         db.session.commit()
 
         # 返回成功响应
-        return jsonify({"message": "Message sent successfully", "message_id": new_chat_record.id}), 201
+        return jsonify({"message": "Message sent successfully", 'sessionid': session_id, "message_id": new_chat_record.id}), 201
 
     except Exception as e:
         print(str(e))
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
-
-
-def request_api(message):
-    url = "http://101.36.98.230:4396/chat"
-    print(message)
-    payload = json.dumps({
-        "message": message
-    })
-    headers = {
-        'Content-Type': 'application/json'
-    }
-    response = requests.request("POST", url, data=payload, headers=headers)
-
-    # 检查响应状态码
-    if response.status_code != 200:
-        # 处理错误情况，例如打印错误信息或抛出异常
-        print(f"Error: Received status code {response.status_code}")
-        return None
-
-    try:
-        chat_response = response.json()['message']
-    except json.JSONDecodeError:
-        print("Error: Response is not valid JSON.")
-        return None
-    except KeyError:
-        print("Error: 'message' not found in response.")
-        return None
-
-    return chat_response

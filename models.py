@@ -26,7 +26,8 @@ class ChatRecord(db.Model):
     message = db.Column(db.Text)
     response = db.Column(db.Text)
     timestamp = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
-
+    model = db.Column(db.String(10))  # 字段长度可根据需求调整
+    key_version = db.Column(db.Integer)
 
     def __repr__(self):
         return f'<ChatRecord {self.id} in Session {self.session_id} by User {self.user_id}>'
